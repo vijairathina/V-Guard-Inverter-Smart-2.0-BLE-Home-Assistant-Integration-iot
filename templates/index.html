@@ -1,0 +1,1300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V-Guard Smart Inverter - Advanced Control Center</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <!-- Toast Notification Container -->
+    <div id="toastContainer"></div>
+
+    <!-- Background glowing ambient mesh -->
+    <div class="bg-ambient">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+
+    <div class="app-container">
+        <!-- Top Navigation / Header -->
+        <header class="header-bar">
+            <div class="brand">
+                <div class="brand-icon">⚡</div>
+                <div class="brand-title">
+                    <h1>INVERTOR CONTROL CENTER</h1>
+                    <p>V-Guard Smart Telemetry & Automation System</p>
+                </div>
+            </div>
+
+            <div class="header-actions">
+                <!-- BLE Connection Dot -->
+                <div class="conn-pill" title="BLE (Bluetooth Low Energy) Status">
+                    <span id="bleDot" style="width:10px;height:10px;border-radius:50%;background:var(--danger);display:inline-block;flex-shrink:0;"></span>
+                    <span id="bleLabel" style="font-size:0.8rem;color:var(--text-muted);">BLE</span>
+                </div>
+                <!-- BT Classic Connection Dot (treated as same session for inverter) -->
+                <div class="conn-pill" title="Bluetooth Classic / Auto-connect Status">
+                    <span id="btDot" style="width:10px;height:10px;border-radius:50%;background:var(--danger);display:inline-block;flex-shrink:0;"></span>
+                    <span id="btLabel" style="font-size:0.8rem;color:var(--text-muted);">BT</span>
+                </div>
+                <!-- BLE last update time -->
+                <div class="conn-pill" style="border-color:rgba(16,185,129,0.3);">
+                    <span style="font-size:0.75rem;color:var(--text-muted);">📡</span>
+                    <span id="lastBleTimeText" style="font-size:0.8rem;color:var(--success);font-family:'JetBrains Mono',monospace;font-weight:600;">--:--</span>
+                </div>
+                <!-- Connected device name -->
+                <div class="conn-pill" id="connDevicePill" style="display:none;border-color:rgba(16,185,129,0.35);">
+                    <span id="connStatusText" style="font-size:0.8rem;font-weight:600;color:var(--success);">Disconnected</span>
+                </div>
+                <!-- Settings gear button -->
+                <button class="btn-glass" onclick="openSettingsModal()" title="Connection Settings" style="padding:8px 12px;font-size:1.1rem;">
+                    ⚙️
+                </button>
+                <!-- Scan button -->
+                <button class="btn-glass" onclick="openScanModal()">
+                    <span>🔍</span> Scan
+                </button>
+                <button class="btn-glass" onclick="openHassModal()">
+                    <span>🏠</span> HA
+                </button>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs Bar -->
+        <nav class="main-nav-tabs">
+            <button id="navTabStatus" class="nav-tab-btn active" onclick="switchMainTab('status')">
+                <span>🖥️</span> Live Dashboard
+            </button>
+            <button id="navTabSmart" class="nav-tab-btn" onclick="switchMainTab('smart')">
+                <span>🎛️</span> Smart Settings
+            </button>
+            <button id="navTabUsage" class="nav-tab-btn" onclick="switchMainTab('usage')">
+                <span>📊</span> Outage Analytics
+            </button>
+        </nav>
+
+        <!-- Hero Power Status Banner -->
+        <section id="heroBanner" class="power-hero-banner grid-fail">
+            <div class="hero-left">
+                <div id="heroIcon" class="hero-status-icon">🚨</div>
+                <div class="hero-text">
+                    <h2 id="heroTitle">GRID POWER CUT DETECTED</h2>
+                    <p id="heroSubtitle">Inverter is running on Battery Power. Grid is 0V.</p>
+                </div>
+            </div>
+            <div class="hero-badge-group">
+                <span id="badgeGrid" class="badge badge-warning">GRID: OFF</span>
+                <span id="badgeInv" class="badge badge-info">INV: ACTIVE</span>
+                <span id="badgeBackup" class="badge badge-success">BACKUP ACTIVE</span>
+            </div>
+        </section>
+
+        <!-- ==================================================================== -->
+        <!-- TAB 1: LIVE DASHBOARD (Futuristic Visual Layout)                     -->
+        <!-- ==================================================================== -->
+        <div id="tabContentStatus" class="tab-content">
+            <div class="dashboard-grid">
+                
+                <!-- Center Hero Battery Circle Ring Gauge Card -->
+                <div class="glass-card col-12" style="text-align: center; padding: 32px 24px;">
+                    <div class="ring-gauge-container">
+                        <svg class="ring-gauge-svg" viewBox="0 0 200 200">
+                            <circle class="ring-bg" cx="100" cy="100" r="90"></circle>
+                            <circle id="ringFillCircle" class="ring-fill" cx="100" cy="100" r="90" style="stroke-dashoffset: 140;"></circle>
+                        </svg>
+                        <div class="ring-center-content">
+                            <span id="ringBatteryIcon" style="font-size: 28px; margin-bottom: 4px;">⚡</span>
+                            <span id="ringBatteryPct" class="ring-pct-text">75%</span>
+                            <span id="ringBatteryState" class="ring-subtext">Battery Level</span>
+                        </div>
+                    </div>
+
+                    <!-- Backup Badge Pill: HIDE ON MAINS GRID to avoid displaying Approx Backup on Mains -->
+                    <div id="backupTimeBadgeContainer" style="display: none;">
+                        <span id="valBackupPill" class="backup-badge-pill">Approx Backup : 6H 58M</span>
+                    </div>
+                </div>
+
+                <!-- Dual Status Cards: Mains Available vs Load On Inverter -->
+                <div class="glass-card col-6">
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <div style="width: 52px; height: 52px; background: rgba(56, 189, 248, 0.15); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; font-size: 26px;">
+                            🗼
+                        </div>
+                        <div>
+                            <h3 id="valMainsCardVal" style="font-size: 1.8rem; font-weight: 800; font-family: 'JetBrains Mono', monospace;">206.2 V</h3>
+                            <p id="valMainsCardSub" style="font-size: 0.9rem; color: var(--warning); font-weight: 600;">Mains Available</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-card col-6">
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <div style="width: 52px; height: 52px; background: rgba(16, 185, 129, 0.15); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; font-size: 26px;">
+                            📟
+                        </div>
+                        <div>
+                            <h3 id="valLoadCardVal" style="font-size: 1.8rem; font-weight: 800; font-family: 'JetBrains Mono', monospace;">28%</h3>
+                            <p id="valLoadCardSub" style="font-size: 0.9rem; color: var(--success); font-weight: 600;">Load On Inverter</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Secondary Electrical Meters Summary Grid -->
+                <div class="glass-card col-4">
+                    <div class="card-header">
+                        <div class="card-title"><span>🔋</span> Battery System</div>
+                        <span class="badge badge-info">12V BANK</span>
+                    </div>
+                    <div class="big-metric-container">
+                        <span id="valBatteryVoltage" class="big-value">12.85</span>
+                        <span class="unit">V</span>
+                    </div>
+                    <div class="stats-list">
+                        <div class="stat-row">
+                            <span class="label">Battery Current (A)</span>
+                            <span id="valBatteryCurrent" class="val">-2.7 A</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="label">Warning Status</span>
+                            <span id="valBatteryLow" class="val" style="color: var(--success);">NORMAL</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-card col-4">
+                    <div class="card-header">
+                        <div class="card-title"><span>🔌</span> AC Meters</div>
+                        <span id="valAcFreq" class="badge badge-info">50.0 Hz</span>
+                    </div>
+                    <div class="meters-grid">
+                        <div class="meter-box">
+                            <div class="meter-header"><span>AC INPUT</span><span>⚡</span></div>
+                            <div class="meter-val"><span id="valAcInputV">0.0</span><span class="meter-unit">V</span></div>
+                            <p class="sub-label" id="acInputStateLabel">Grid Cut (0V)</p>
+                        </div>
+                        <div class="meter-box">
+                            <div class="meter-header"><span>AC OUTPUT</span><span>💡</span></div>
+                            <div class="meter-val"><span id="valAcOutputV">230.0</span><span class="meter-unit">V</span></div>
+                            <p class="sub-label" id="acOutputStateLabel">Inverter Output Active</p>
+                        </div>
+                    </div>
+                    <div class="stats-list" style="margin-top: 12px;">
+                        <div class="stat-row">
+                            <span class="label">Output AC Current</span>
+                            <span id="valOutputCurrent" class="val">0.15 A</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-card col-4">
+                    <div class="card-header">
+                        <div class="card-title"><span>⏱️</span> Load Power</div>
+                        <span id="valBackupHoursBadge" class="badge badge-success">STANDBY</span>
+                    </div>
+                    <div class="big-metric-container">
+                        <span id="valLoadWatts" class="big-value">30</span>
+                        <span class="unit">W</span>
+                    </div>
+                    <div class="battery-visual">
+                        <div class="bar-bg">
+                            <div id="loadFillBar" class="bar-fill" style="width: 3%; background: linear-gradient(90deg, #38bdf8 0%, #818cf8 100%);"></div>
+                        </div>
+                    </div>
+                    <div class="stats-list" style="margin-top: 12px;">
+                        <div class="stat-row">
+                            <span class="label">Apparent Power (VA)</span>
+                            <span id="valLoadVa" class="val">35 VA</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="label">Remaining Backup</span>
+                            <span id="valRemainingMins" class="val">92 Mins</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ==================================================================== -->
+        <!-- TAB 2: SMART SETTINGS (Functional Protocol Controls)                  -->
+        <!-- ==================================================================== -->
+        <div id="tabContentSmart" class="tab-content" style="display: none;">
+            <div class="glass-card col-12">
+                <div class="card-header">
+                    <div class="card-title"><span>🎛️</span> Inverter Smart Settings</div>
+                    <span class="badge badge-success">BLE ONLINE</span>
+                </div>
+
+                <div class="controls-grid">
+                    <!-- Forced Power Cut -->
+                    <div class="control-item">
+                        <div class="control-info">
+                            <h4>🗼 Forced Power Cut</h4>
+                            <p id="forceCutSubtext">Simulate mains cut & run on inverter backup (Reg 305 / VG105)</p>
+                            <span id="forceCutTimerLabel" style="font-size: 0.75rem; color: var(--warning); font-weight: 700; display: none;">RECONNECTED IN : 28 MINUTES</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span style="color: var(--text-muted); cursor: pointer;" onclick="openForceCutModal()">ℹ️</span>
+                            <label class="switch-lg">
+                                <input type="checkbox" id="switchForceCut" onchange="handleForceCutToggle(this.checked)">
+                                <span class="slider-lg"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Appliance Mode -->
+                    <div class="control-item">
+                        <div class="control-info">
+                            <h4>🔌 Appliance Mode (High Surge)</h4>
+                            <p>Motor & iron high-surge tolerance protocol (Reg 503 / VG071)</p>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span style="color: var(--text-muted); cursor: pointer;" onclick="alert('Appliance Mode configures the inverter for high surge current appliances like irons and refrigerators.')">ℹ️</span>
+                            <label class="switch-lg">
+                                <input type="checkbox" id="switchApplianceMode" onchange="toggleControl('appliance_mode', this.checked)">
+                                <span class="slider-lg"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Extra Backup Mode -->
+                    <div class="control-item">
+                        <div class="control-info">
+                            <h4>🔋 Extra Backup Mode</h4>
+                            <p>Extend battery runtime at lower cutoff thresholds (Reg 213 / VG072)</p>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span style="color: var(--text-muted); cursor: pointer;" onclick="alert('Extra Backup allows deeper battery discharge during emergency power cuts.')">ℹ️</span>
+                            <label class="switch-lg">
+                                <input type="checkbox" id="switchExtraBackup" onchange="toggleControl('extra_backup', this.checked)">
+                                <span class="slider-lg"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Turbo Charging -->
+                    <div class="control-item">
+                        <div class="control-info">
+                            <h4>⚡ Turbo Charging</h4>
+                            <p>Accelerated 30A high-speed charge recharge (Reg 207 / VG037)</p>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span style="color: var(--text-muted); cursor: pointer;" onclick="alert('Turbo Charging boosts charge current to 30A for quick recovery after power cuts.')">ℹ️</span>
+                            <label class="switch-lg">
+                                <input type="checkbox" id="switchTurboCharging" onchange="toggleControl('turbo_charging', this.checked)">
+                                <span class="slider-lg"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Holiday Mode -->
+                    <div class="control-item">
+                        <div class="control-info">
+                            <h4>🏖️ Holiday Mode</h4>
+                            <p>Smart low power preservation while traveling (Reg 201 / VG035)</p>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span style="color: var(--text-muted); cursor: pointer;" onclick="alert('Holiday Mode conserves battery power during long trips by pausing non-essential charging routines.')">ℹ️</span>
+                            <label class="switch-lg">
+                                <input type="checkbox" id="switchHolidayMode" onchange="toggleControl('holiday_mode', this.checked)">
+                                <span class="slider-lg"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Eco Mode -->
+                    <div class="control-item">
+                        <div class="control-info">
+                            <h4>🍃 Eco Saver Mode</h4>
+                            <p>Smart energy efficiency protocol (Reg 308 / VG185)</p>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span style="color: var(--text-muted); cursor: pointer;" onclick="alert('Eco Saver Mode reduces standby energy consumption.')">ℹ️</span>
+                            <label class="switch-lg">
+                                <input type="checkbox" id="switchEcoMode" onchange="toggleControl('eco_mode', this.checked)">
+                                <span class="slider-lg"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================================================================== -->
+        <!-- TAB 3: USAGE & POWER CUT TRENDS                                      -->
+        <!-- ==================================================================== -->
+        <div id="tabContentUsage" class="tab-content" style="display: none;">
+            <div class="glass-card col-12">
+                <div class="card-header">
+                    <div class="card-title"><span>📊</span> Power Cut Trends</div>
+                    <div style="display: flex; gap: 16px; font-size: 0.82rem; font-weight: 600;">
+                        <span style="color: #38bdf8;">■ Power Cut Count</span>
+                        <span style="color: #84cc16;">■ Power Cut Duration (HH:MM)</span>
+                    </div>
+                </div>
+
+                <!-- Dual Bar Chart Container -->
+                <div class="trend-chart-container">
+                    <!-- 15 Sep -->
+                    <div class="chart-day-col">
+                        <div class="chart-bars-group">
+                            <div class="bar-blue" style="height: 8%;"><span class="bar-val-badge">1</span></div>
+                            <div class="bar-green" style="height: 3%;"><span class="bar-val-badge" style="color:#a3e635;">0:00</span></div>
+                        </div>
+                        <span class="chart-date-label">15 Sep</span>
+                    </div>
+                    <!-- 16 Sep -->
+                    <div class="chart-day-col">
+                        <div class="chart-bars-group">
+                            <div class="bar-blue" style="height: 64%;"><span class="bar-val-badge">8</span></div>
+                            <div class="bar-green" style="height: 48%;"><span class="bar-val-badge" style="color:#a3e635;">5:11</span></div>
+                        </div>
+                        <span class="chart-date-label">16 Sep</span>
+                    </div>
+                    <!-- 17 Sep -->
+                    <div class="chart-day-col">
+                        <div class="chart-bars-group">
+                            <div class="bar-blue" style="height: 48%;"><span class="bar-val-badge">6</span></div>
+                            <div class="bar-green" style="height: 12%;"><span class="bar-val-badge" style="color:#a3e635;">0:32</span></div>
+                        </div>
+                        <span class="chart-date-label">17 Sep</span>
+                    </div>
+                    <!-- 18 Sep -->
+                    <div class="chart-day-col">
+                        <div class="chart-bars-group">
+                            <div class="bar-blue" style="height: 8%;"><span class="bar-val-badge">1</span></div>
+                            <div class="bar-green" style="height: 18%;"><span class="bar-val-badge" style="color:#a3e635;">0:54</span></div>
+                        </div>
+                        <span class="chart-date-label">18 Sep</span>
+                    </div>
+                    <!-- 19 Sep -->
+                    <div class="chart-day-col">
+                        <div class="chart-bars-group">
+                            <div class="bar-blue" style="height: 8%;"><span class="bar-val-badge">1</span></div>
+                            <div class="bar-green" style="height: 6%;"><span class="bar-val-badge" style="color:#a3e635;">0:10</span></div>
+                        </div>
+                        <span class="chart-date-label">19 Sep</span>
+                    </div>
+                    <!-- 20 Sep -->
+                    <div class="chart-day-col">
+                        <div class="chart-bars-group">
+                            <div class="bar-blue" style="height: 24%;"><span class="bar-val-badge">3</span></div>
+                            <div class="bar-green" style="height: 85%;"><span class="bar-val-badge" style="color:#a3e635;">10:38</span></div>
+                        </div>
+                        <span class="chart-date-label">20 Sep</span>
+                    </div>
+                    <!-- Today Active Outage Column -->
+                    <div id="activeChartDayCol" class="chart-day-col">
+                        <div class="chart-bars-group">
+                            <div id="barBlueEl" class="bar-blue" style="height: 16%;"><span id="barBlueVal" class="bar-val-badge">2</span></div>
+                            <div id="barGreenEl" class="bar-green" style="height: 12%;"><span id="barGreenVal" class="bar-val-badge" style="color:#a3e635;">0:28</span></div>
+                        </div>
+                        <span id="chartTodayLabel" class="chart-date-label">Today</span>
+                    </div>
+                </div>
+
+                <!-- Performance Summary Table -->
+                <div class="stats-list" style="margin-top: 24px;">
+                    <div class="stat-row">
+                        <span class="label">Power Cut Incident Count Today</span>
+                        <span id="valPowerCutCount" class="val">2 Times</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="label">Total Power Cut Duration Today</span>
+                        <span id="valPowerCutDuration" class="val">28 Minutes (0:28)</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="label">Inverter Temperature</span>
+                        <span id="valTemperature" class="val">34.0 °C</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="label">Alarm Register Hex</span>
+                        <span id="valAlarmBits" class="val">0x8001</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Raw Log Console Debug Accordion -->
+        <div class="glass-card col-12" style="margin-top: 24px;">
+            <button class="accordion-toggle" onclick="toggleDebugAccordion()">
+                <span>🛠️ Live BLE Protocol & Raw Response Log</span>
+                <span id="accordionArrow">▼</span>
+            </button>
+            <div id="debugAccordionBody" class="accordion-body">
+                <pre id="rawLogConsole">Waiting for live BLE telemetry stream...</pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating Bottom Action Toolbar -->
+    <div class="app-bottom-toolbar">
+        <button class="toolbar-btn" onclick="openDetailsModal()" title="Inverter Details">ℹ️</button>
+        <button id="toolbarPowerBtn" class="toolbar-btn power-btn" onclick="toggleControl('inverter', !isMasterPowerOn)" title="Master Inverter Power Switch">⏁</button>
+        <button class="toolbar-btn" onclick="openScanModal()" title="BLE Connection">📶</button>
+    </div>
+
+    <!-- MODAL 1: INVERTER DETAILS -->
+    <div id="detailsModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Inverter Details</h3>
+                <button class="close-btn" onclick="closeDetailsModal()">&times;</button>
+            </div>
+            <div class="stats-list">
+                <div class="stat-row">
+                    <span class="label">Battery Voltage</span>
+                    <span id="modalBatVolt" class="val">-- V</span>
+                </div>
+                <div class="stat-row">
+                    <span class="label">Mains Voltage</span>
+                    <span id="modalMainsVolt" class="val">-- V</span>
+                </div>
+                <div class="stat-row">
+                    <span class="label">Load Current</span>
+                    <span id="modalLoadCurr" class="val">-- A</span>
+                </div>
+                <div class="stat-row">
+                    <span class="label">Charging Current</span>
+                    <span id="modalChargeCurr" class="val">-- A</span>
+                </div>
+                <div class="stat-row">
+                    <span class="label">Grid Frequency</span>
+                    <span id="modalFreq" class="val">-- Hz</span>
+                </div>
+                <div class="stat-row">
+                    <span class="label">Inverter Temperature</span>
+                    <span id="modalTemp" class="val">-- °C</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2: MAINS FORCE CUT DURATION -->
+    <div id="forceCutModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🗼 Mains Force Cut Duration</h3>
+                <button class="close-btn" onclick="closeForceCutModal()">&times;</button>
+            </div>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
+                SELECT TIME DURATION
+            </p>
+
+            <!-- APK Preprocess loading indicator -->
+            <div id="forceCutPreprocessLoader" style="display:none; text-align:center; padding:12px 0; background:rgba(255,255,255,0.03); border-radius:10px; margin-bottom:12px;">
+                <span style="font-size:0.85rem; color:var(--primary); font-weight:600;">⏳ Reading live status from inverter...</span>
+            </div>
+
+            <div id="forceCutOptionsContainer">
+                <div id="forceCutOpt30m" class="force-cut-option" onclick="applyForceCut('30m')">
+                    <span style="font-weight: 600;">30 Minutes</span>
+                    <div class="force-cut-radio"></div>
+                </div>
+                <div id="forceCutOpt60m" class="force-cut-option" onclick="applyForceCut('60m')">
+                    <span style="font-weight: 600;">60 Minutes</span>
+                    <div class="force-cut-radio"></div>
+                </div>
+                <div id="forceCutOpt120m" class="force-cut-option" onclick="applyForceCut('120m')">
+                    <span style="font-weight: 600;">120 Minutes</span>
+                    <div class="force-cut-radio"></div>
+                </div>
+                <div id="forceCutOptClear" class="force-cut-option" onclick="applyForceCut('clear')">
+                    <span style="font-weight: 600; color: var(--danger);">Clear mains force cut</span>
+                    <div class="force-cut-radio"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ⚙️ Settings Modal (Connection Hub) -->
+    <div id="settingsModal" class="modal-overlay">
+        <div class="modal-content" style="max-width:480px;">
+            <div class="modal-header">
+                <h3>⚙️ Connection Settings</h3>
+                <button class="close-btn" onclick="closeSettingsModal()">&#times;</button>
+            </div>
+
+            <!-- Status Summary -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+                <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:14px;">
+                    <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:6px;">BLE STATUS</div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span id="settingsBleStatus" style="width:12px;height:12px;border-radius:50%;background:var(--danger);display:inline-block;flex-shrink:0;"></span>
+                        <span id="settingsBleLabel" style="font-weight:700;font-size:0.9rem;color:var(--text-primary);">Disconnected</span>
+                    </div>
+                    <div id="settingsBleDevice" style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">—</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:14px;">
+                    <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:6px;">AUTO-CONNECT</div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span id="settingsAcDot" style="width:12px;height:12px;border-radius:50%;background:var(--warning);display:inline-block;flex-shrink:0;"></span>
+                        <span id="settingsAcLabel" style="font-weight:700;font-size:0.9rem;color:var(--warning);">ON</span>
+                    </div>
+                    <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Target: <span id="settingsAcTarget">VG_SMART_BT_WF_2</span></div>
+                </div>
+            </div>
+
+            <!-- Auto-Connect Toggle -->
+            <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:14px 16px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
+                <div>
+                    <div style="font-weight:600;font-size:0.92rem;color:var(--text-primary);">🔄 Auto-Connect</div>
+                    <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">Automatically scan &amp; reconnect when disconnected</div>
+                </div>
+                <label style="position:relative;display:inline-block;width:46px;height:26px;flex-shrink:0;">
+                    <input type="checkbox" id="autoConnectToggle" onchange="handleAutoConnectToggle(this.checked)" style="opacity:0;width:0;height:0;">
+                    <span id="autoConnectSlider" style="position:absolute;cursor:pointer;inset:0;background:var(--danger);border-radius:26px;transition:.3s;
+                        display:flex;align-items:center;padding:3px;" >
+                        <span style="width:20px;height:20px;background:#fff;border-radius:50%;transition:.3s;transform:translateX(0);display:block;" id="sliderKnob"></span>
+                    </span>
+                </label>
+            </div>
+
+            <!-- Action Buttons -->
+            <div style="display:flex;flex-direction:column;gap:10px;">
+                <button class="btn-glass btn-primary" onclick="openScanFromSettings()" style="text-align:left;padding:12px 16px;">
+                    <span style="font-size:1rem;">🔍</span>
+                    <span style="font-weight:600;">Scan &amp; Connect</span>
+                    <span style="font-size:0.75rem;color:rgba(255,255,255,0.6);display:block;margin-top:2px;margin-left:24px;">Search for nearby V-Guard BLE devices</span>
+                </button>
+                <button class="btn-glass" onclick="settingsDisconnectOnly()" id="settingsBtnDisconn" style="text-align:left;padding:12px 16px;border-color:rgba(251,191,36,0.4);display:none;">
+                    <span style="font-size:1rem;">⚡</span>
+                    <span style="font-weight:600;color:var(--warning);">Disconnect (keep auto-reconnect)</span>
+                    <span style="font-size:0.75rem;color:rgba(255,255,255,0.5);display:block;margin-top:2px;margin-left:24px;">Close session; will auto-reconnect</span>
+                </button>
+                <button class="btn-glass" onclick="settingsDisconnectStop()" id="settingsBtnDisconnStop" style="text-align:left;padding:12px 16px;border-color:rgba(239,68,68,0.4);display:none;">
+                    <span style="font-size:1rem;">🛑</span>
+                    <span style="font-weight:600;color:var(--danger);">Disconnect &amp; Stop Auto-Reconnect</span>
+                    <span style="font-size:0.75rem;color:rgba(255,255,255,0.5);display:block;margin-top:2px;margin-left:24px;">Fully stop; manual connect required</span>
+                </button>
+                <button class="btn-glass" onclick="settingsResumeAutoConnect()" id="settingsBtnResume" style="text-align:left;padding:12px 16px;border-color:rgba(16,185,129,0.4);display:none;">
+                    <span style="font-size:1rem;">▶</span>
+                    <span style="font-weight:600;color:var(--success);">Resume Auto-Connect</span>
+                    <span style="font-size:0.75rem;color:rgba(255,255,255,0.5);display:block;margin-top:2px;margin-left:24px;">Re-enable scanning for VG_SMART_BT_WF_2</span>
+                </button>
+            </div>
+            <div id="settingsStatusMsg" style="margin-top:14px;font-size:0.82rem;text-align:center;color:var(--text-muted);"></div>
+        </div>
+    </div>
+
+    <!-- Bluetooth Scan Modal -->
+    <div id="scanModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🔍 Bluetooth Device Scanner</h3>
+                <button class="close-btn" onclick="closeScanModal()" style="font-size:1.4rem;font-weight:700;line-height:1;width:32px;height:32px;display:flex;align-items:center;justify-content:center;">&#215;</button>
+            </div>
+            <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 16px;">
+                Scan for nearby V-Guard Inverter BLE devices.
+            </p>
+            <div style="display: flex; gap: 12px; margin-bottom: 20px;">
+                <button class="btn-glass btn-primary" onclick="triggerScan()">🔍 Start Scanning</button>
+                <button class="btn-glass btn-danger" onclick="settingsDisconnectOnly()">🔌 Disconnect</button>
+            </div>
+            <div id="scanSpinner" style="display: none; text-align: center; margin: 20px 0;">
+                <p style="color: var(--primary);">Scanning BLE frequencies (5 seconds)...</p>
+            </div>
+            <div id="scanResultsContainer"></div>
+        </div>
+    </div>
+
+
+    <!-- Home Assistant Modal -->
+    <div id="hassModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🏠 Home Assistant REST Integration</h3>
+                <button class="close-btn" onclick="closeHassModal()">&times;</button>
+            </div>
+            <div class="form-group">
+                <label>Home Assistant URL</label>
+                <input type="text" id="haUrlInput" class="input-glass" placeholder="http://192.168.1.100:8123">
+            </div>
+            <div class="form-group">
+                <label>Long-Lived Access Token</label>
+                <input type="password" id="haTokenInput" class="input-glass" placeholder="Paste HA Token here">
+            </div>
+            <div class="form-group">
+                <label>Auto-Push Interval (Seconds)</label>
+                <input type="number" id="haIntervalInput" class="input-glass" value="10" min="2" max="60">
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 24px;">
+                <span id="haStatusLabel" style="font-size: 0.85rem; color: var(--text-muted);">Status: Checking...</span>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn-glass" onclick="testHassConn()">Test</button>
+                    <button class="btn-glass btn-primary" onclick="saveHassConfig()">Save Config</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let activeTab = 'status';
+        let isMasterPowerOn = true;
+        let lastGridState = null;
+
+        function showToast(type, title, message) {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast-item toast-${type}`;
+            toast.innerHTML = `
+                <div class="toast-title">${title}</div>
+                <div class="toast-body">${message}</div>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(-10px)';
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        function switchMainTab(tabName) {
+            activeTab = tabName;
+            document.querySelectorAll('.nav-tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+
+            if (tabName === 'status') {
+                document.getElementById('navTabStatus').classList.add('active');
+                document.getElementById('tabContentStatus').style.display = 'block';
+            } else if (tabName === 'smart') {
+                document.getElementById('navTabSmart').classList.add('active');
+                document.getElementById('tabContentSmart').style.display = 'block';
+            } else if (tabName === 'usage') {
+                document.getElementById('navTabUsage').classList.add('active');
+                document.getElementById('tabContentUsage').style.display = 'block';
+            }
+        }
+
+        async function fetchTelemetry() {
+            try {
+                const res = await fetch('/api/status');
+                const data = await res.json();
+
+                const bleDot = document.getElementById('bleDot');
+                const bleLabel = document.getElementById('bleLabel');
+                const btDot = document.getElementById('btDot');
+                const btLabel = document.getElementById('btLabel');
+                const connDevicePill = document.getElementById('connDevicePill');
+                const connText = document.getElementById('connStatusText');
+
+                if (data.connected) {
+                    if (bleDot) bleDot.style.background = '#10B981';
+                    if (bleLabel) bleLabel.style.color = '#10B981';
+                    if (btDot) btDot.style.background = '#10B981';
+                    if (btLabel) btLabel.style.color = '#10B981';
+                    if (connDevicePill) connDevicePill.style.display = 'flex';
+                    if (connText) connText.textContent = `Connected: ${data.device.name || 'Inverter'}`;
+                } else {
+                    if (bleDot) bleDot.style.background = '#EF4444';
+                    if (bleLabel) bleLabel.style.color = 'var(--text-muted)';
+                    if (btDot) btDot.style.background = '#EF4444';
+                    if (btLabel) btLabel.style.color = 'var(--text-muted)';
+                    if (connDevicePill) connDevicePill.style.display = 'none';
+                    if (connText) connText.textContent = 'Disconnected';
+                }
+
+                const tel = data.telemetry || {};
+
+                // Stale data check (>30 sec without BLE update or disconnected)
+                const bleAgoSecs = tel.last_ble_seconds_ago;
+                const isStale = (!data.connected) || (bleAgoSecs !== undefined && bleAgoSecs !== null && bleAgoSecs > 30);
+
+                // Timestamps & Stale Indicator
+                const bleTimeStr = tel.last_ble_time || tel.last_updated || 'No Data';
+                const bleTimeText = document.getElementById('lastBleTimeText');
+                if (isStale) {
+                    const agoText = bleAgoSecs ? `${Math.round(bleAgoSecs)}s ago` : 'No Signal';
+                    bleTimeText.style.color = '#EF4444';
+                    bleTimeText.textContent = `${bleTimeStr} (${agoText} - STALE)`;
+                } else {
+                    const agoText = bleAgoSecs ? ` (${Math.round(bleAgoSecs)}s ago)` : '';
+                    bleTimeText.style.color = 'var(--success)';
+                    bleTimeText.textContent = `${bleTimeStr}${agoText}`;
+                }
+
+                // Grid Status & Hero Banner
+                let acInV = tel.ac_input_voltage !== undefined && tel.ac_input_voltage !== null ? tel.ac_input_voltage : null;
+                const isPowerCut = tel.utility_fail === true || tel.forced_power_cut === true || (acInV !== null && acInV < 50.0);
+
+                // Real-Time Grid Cut Notification Warning Toast
+                if (lastGridState !== null && lastGridState !== isPowerCut) {
+                    if (isPowerCut) {
+                        showToast('warning', '🚨 Grid Outage Detected', 'Grid Mains Power Cut! Inverter running on Battery Backup.');
+                    } else {
+                        showToast('success', '⚡ Mains Restored', 'AC Grid Mains Power restored. Battery charging active.');
+                    }
+                }
+                lastGridState = isPowerCut;
+
+                const heroBanner = document.getElementById('heroBanner');
+                const heroIcon = document.getElementById('heroIcon');
+                const heroTitle = document.getElementById('heroTitle');
+                const heroSubtitle = document.getElementById('heroSubtitle');
+                const badgeGrid = document.getElementById('badgeGrid');
+                const badgeInv = document.getElementById('badgeInv');
+
+                if (isPowerCut) {
+                    heroBanner.className = 'power-hero-banner grid-fail';
+                    heroIcon.textContent = '🚨';
+                    heroTitle.textContent = tel.forced_power_cut ? 'MAINS FORCE CUT ACTIVE' : 'GRID POWER CUT DETECTED';
+                    heroSubtitle.textContent = `Inverter is running on Battery Power. Grid is 0V.`;
+                    badgeGrid.className = 'badge badge-warning';
+                    badgeGrid.textContent = tel.forced_power_cut ? 'GRID: FORCE CUT' : 'GRID: POWER CUT';
+                    badgeInv.className = 'badge badge-success';
+                    badgeInv.textContent = 'INV: BATTERY ACTIVE';
+
+                    let remMins = tel.backup_time_mins !== undefined && tel.backup_time_mins !== null ? tel.backup_time_mins : null;
+                    if (remMins !== null && remMins > 0) {
+                        let hrs = Math.floor(remMins / 60);
+                        let mins = Math.round(remMins % 60);
+                        document.getElementById('backupTimeBadgeContainer').style.display = 'block';
+                        document.getElementById('valBackupPill').textContent = `Approx Backup : ${hrs}H ${mins}M`;
+                        document.getElementById('badgeBackup').textContent = `BACKUP: ${hrs}.${Math.round((mins/60)*10)}h`;
+                        document.getElementById('valBackupHoursBadge').textContent = `${hrs}.${Math.round((mins/60)*10)} Hours`;
+                    } else {
+                        document.getElementById('backupTimeBadgeContainer').style.display = 'block';
+                        document.getElementById('valBackupPill').textContent = `Approx Backup : Calculating...`;
+                        document.getElementById('badgeBackup').textContent = `BACKUP: CALC...`;
+                        document.getElementById('valBackupHoursBadge').textContent = `Calculating...`;
+                    }
+
+                } else {
+                    heroBanner.className = 'power-hero-banner grid-normal';
+                    heroIcon.textContent = '⚡';
+                    let mainsVStr = acInV !== null ? `${acInV.toFixed(1)}V` : '--V';
+                    heroTitle.textContent = 'MAINS GRID POWER NORMAL';
+                    heroSubtitle.textContent = `AC Grid Power connected (${mainsVStr} Mains). Battery charging / standby active.`;
+                    badgeGrid.className = 'badge badge-success';
+                    badgeGrid.textContent = `GRID: ${mainsVStr} MAINS`;
+                    badgeInv.className = 'badge badge-info';
+                    badgeInv.textContent = 'INV: MAINS PASS';
+
+                    document.getElementById('backupTimeBadgeContainer').style.display = 'none';
+                    document.getElementById('badgeBackup').textContent = `MAINS ONLINE`;
+                    document.getElementById('valBackupHoursBadge').textContent = `STANDBY (CHARGING)`;
+                }
+
+                // Battery Ring Gauge & Center Content
+                let batPct = tel.battery_pct !== undefined && tel.battery_pct !== null ? tel.battery_pct : null;
+                document.getElementById('ringBatteryPct').textContent = batPct !== null ? `${batPct}%` : '--%';
+                
+                const circle = document.getElementById('ringFillCircle');
+                const circumference = 565;
+                const pctVal = batPct !== null ? batPct : 50;
+                const offset = circumference - (pctVal / 100) * circumference;
+                circle.style.strokeDashoffset = offset;
+
+                if (isPowerCut) {
+                    document.getElementById('ringBatteryIcon').textContent = '🔋';
+                    document.getElementById('ringBatteryState').textContent = 'Battery Level';
+                    circle.style.stroke = '#84cc16';
+                } else {
+                    document.getElementById('ringBatteryIcon').textContent = '⚡';
+                    document.getElementById('ringBatteryState').textContent = 'Charging';
+                    circle.style.stroke = '#10b981';
+                }
+
+                // Dual Status Cards (Mains Available vs Load On Inverter)
+                let loadPct = tel.load_pct !== undefined && tel.load_pct !== null ? Math.round(tel.load_pct) : 0;
+                if (isPowerCut) {
+                    document.getElementById('valMainsCardVal').textContent = tel.forced_power_cut ? 'Force Cut' : '0.0 V';
+                    document.getElementById('valMainsCardSub').textContent = tel.forced_power_cut ? 'Mains Force Cut' : 'Grid Power Cut';
+                    document.getElementById('valMainsCardSub').style.color = 'var(--warning)';
+
+                    document.getElementById('valLoadCardVal').textContent = `${loadPct}%`;
+                    document.getElementById('valLoadCardSub').textContent = 'Load On Inverter';
+                    document.getElementById('valLoadCardSub').style.color = 'var(--success)';
+                } else {
+                    document.getElementById('valMainsCardVal').textContent = acInV !== null ? `${acInV.toFixed(1)} V` : '218.5 V';
+                    document.getElementById('valMainsCardSub').textContent = 'Mains Available';
+                    document.getElementById('valMainsCardSub').style.color = 'var(--warning)';
+
+                    document.getElementById('valLoadCardVal').textContent = `${loadPct}%`;
+                    document.getElementById('valLoadCardSub').textContent = 'Load On Mains';
+                    document.getElementById('valLoadCardSub').style.color = 'var(--primary)';
+                }
+
+                // Electrical Metrics
+                let batVolt = tel.battery_voltage_scaled || tel.voltage || tel.battery_voltage || null;
+                document.getElementById('valBatteryVoltage').textContent = batVolt !== null ? batVolt.toFixed(2) : '--';
+
+                let batCurr = tel.battery_current !== undefined && tel.battery_current !== null ? tel.battery_current : (tel.charge_current !== undefined ? tel.charge_current : 0.0);
+                document.getElementById('valBatteryCurrent').textContent = batCurr !== null ? `${batCurr.toFixed(1)} A` : '-- A';
+
+                let acInDisp = acInV !== null ? acInV : (isPowerCut ? 0.0 : 218.5);
+                document.getElementById('valAcInputV').textContent = acInDisp.toFixed(1);
+                let acOutV = tel.ac_output_voltage !== undefined && tel.ac_output_voltage !== null ? tel.ac_output_voltage : (isPowerCut ? 230.0 : acInDisp);
+                document.getElementById('valAcOutputV').textContent = acOutV.toFixed(1);
+
+                if (document.getElementById('valAcFreq')) {
+                    let freq = tel.ac_frequency !== undefined && tel.ac_frequency !== null ? tel.ac_frequency : 50.0;
+                    document.getElementById('valAcFreq').textContent = `${freq.toFixed(1)} Hz`;
+                }
+
+                if (document.getElementById('valOutputCurrent')) {
+                    let outA = tel.output_current !== undefined && tel.output_current !== null ? tel.output_current : 0.0;
+                    document.getElementById('valOutputCurrent').textContent = `${outA.toFixed(1)} A`;
+                }
+
+                if (document.getElementById('valBatteryLow')) {
+                    let isLow = Boolean(tel.battery_low);
+                    document.getElementById('valBatteryLow').textContent = isLow ? 'LOW BATTERY' : 'NORMAL';
+                    document.getElementById('valBatteryLow').style.color = isLow ? 'var(--danger)' : 'var(--success)';
+                }
+
+                let loadW = tel.load_watts !== undefined && tel.load_watts !== null ? tel.load_watts : 0;
+                let loadVa = tel.load_va !== undefined && tel.load_va !== null ? tel.load_va : 0;
+                document.getElementById('valLoadWatts').textContent = `${Math.round(loadW)}`;
+                document.getElementById('valLoadVa').textContent = `${Math.round(loadVa)} VA`;
+                document.getElementById('valRemainingMins').textContent = tel.backup_time_mins ? `${Math.round(tel.backup_time_mins)} Mins` : '-- Mins';
+
+                // Highlight numbers in RED if data is stale (> 30s) or disconnected
+                const numElems = ['valBatteryVoltage', 'valAcInputV', 'valAcOutputV', 'valLoadWatts', 'valMainsCardVal', 'ringBatteryPct'];
+                numElems.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.style.color = isStale ? '#EF4444' : '';
+                    }
+                });
+
+                // Modals Info mapping
+                document.getElementById('modalBatVolt').textContent = batVolt !== null ? `${batVolt.toFixed(1)} V (${batVolt.toFixed(1)} V)` : '-- V';
+                document.getElementById('modalMainsVolt').textContent = acInDisp !== null ? `${acInDisp.toFixed(1)} V` : (isPowerCut ? '0.0 V' : '-- V');
+
+                let outCurr = tel.output_current !== undefined && tel.output_current !== null ? tel.output_current : 0.0;
+                document.getElementById('modalLoadCurr').textContent = `${outCurr.toFixed(1)} A (AC)`;
+                document.getElementById('modalChargeCurr').textContent = isPowerCut ? '0.0 A (DC)' : (batCurr !== null ? `${batCurr.toFixed(1)} A (DC)` : '-- A');
+
+                let freqVal = tel.ac_frequency !== undefined && tel.ac_frequency !== null ? tel.ac_frequency : 50.0;
+                document.getElementById('modalFreq').textContent = `${freqVal.toFixed(1)} Hz`;
+
+                let tempVal = tel.temperature !== undefined && tel.temperature !== null ? tel.temperature : null;
+                document.getElementById('modalTemp').textContent = tempVal !== null ? `${tempVal.toFixed(1)} °C` : '-- °C';
+                if (document.getElementById('valTemperature')) {
+                    document.getElementById('valTemperature').textContent = tempVal !== null ? `${tempVal.toFixed(1)} °C` : '-- °C';
+                }
+                if (document.getElementById('valAlarmBits')) {
+                    document.getElementById('valAlarmBits').textContent = tel.alarm_bits !== undefined && tel.alarm_bits !== null ? `0x${tel.alarm_bits.toString(16).toUpperCase().padStart(4, '0')}` : 'N/A';
+                }
+
+                // Smart Switches State Sync
+                if (tel.forced_power_cut) {
+                    document.getElementById('switchForceCut').checked = true;
+                    document.getElementById('forceCutTimerLabel').style.display = 'block';
+                    document.getElementById('forceCutTimerLabel').textContent = `RECONNECTED IN : ${tel.forced_power_cut_mins || 28} MINUTES`;
+                } else {
+                    document.getElementById('switchForceCut').checked = false;
+                    document.getElementById('forceCutTimerLabel').style.display = 'none';
+                }
+
+                if (tel.appliance_mode !== undefined) document.getElementById('switchApplianceMode').checked = tel.appliance_mode === 1;
+                if (tel.extra_backup !== undefined) document.getElementById('switchExtraBackup').checked = tel.extra_backup === 1;
+                if (tel.turbo_charging !== undefined) document.getElementById('switchTurboCharging').checked = tel.turbo_charging === 1;
+                if (tel.holiday_mode !== undefined) document.getElementById('switchHolidayMode').checked = tel.holiday_mode === 1;
+                if (tel.eco_mode !== undefined) document.getElementById('switchEcoMode').checked = tel.eco_mode === 1;
+
+                // Outage Analytics Tab Elements
+                let cutCnt = tel.power_cut_count !== undefined ? tel.power_cut_count : 0;
+                let cutMins = tel.power_cut_duration_mins !== undefined ? tel.power_cut_duration_mins : 0;
+                let cutHrsStr = `${Math.floor(cutMins / 60)}:${String(Math.round(cutMins % 60)).padStart(2, '0')}`;
+                document.getElementById('valPowerCutCount').textContent = `${cutCnt} Times`;
+                document.getElementById('valPowerCutDuration').textContent = `${Math.round(cutMins)} Minutes (${cutHrsStr})`;
+
+                // Update Outage Analytics Chart Column
+                const now = new Date();
+                const todayStr = `${now.getDate()} ${now.toLocaleString('default', { month: 'short' })}`;
+                document.getElementById('chartTodayLabel').textContent = todayStr;
+                document.getElementById('barBlueVal').textContent = cutCnt;
+                document.getElementById('barGreenVal').textContent = cutHrsStr;
+                
+                let blueHeight = Math.min(100, Math.max(8, (cutCnt / 8) * 100));
+                let greenHeight = Math.min(100, Math.max(8, (cutMins / 360) * 100));
+                document.getElementById('barBlueEl').style.height = `${blueHeight}%`;
+                document.getElementById('barGreenEl').style.height = `${greenHeight}%`;
+
+                // Live BLE Raw Log Console
+                const rawLogElem = document.getElementById('rawLogConsole');
+                if (rawLogElem && Array.isArray(tel.raw_responses) && tel.raw_responses.length > 0) {
+                    rawLogElem.textContent = tel.raw_responses.slice(-25).join('\n');
+                    rawLogElem.scrollTop = rawLogElem.scrollHeight;
+                }
+
+                // Master Power Toolbar Button
+                isMasterPowerOn = tel.power_state !== 0;
+                const pBtn = document.getElementById('toolbarPowerBtn');
+                if (isMasterPowerOn) pBtn.classList.remove('off');
+                else pBtn.classList.add('off');
+
+            } catch (err) {
+                console.error('Fetch telemetry error:', err);
+            }
+        }
+
+        async function parseJsonResponse(res) {
+            try {
+                return await res.json();
+            } catch (_) {
+                const text = await res.text();
+                return { success: false, error: text.slice(0, 100) || `HTTP ${res.status}` };
+            }
+        }
+
+        async function toggleControl(feature, enable) {
+            let cmdName = `${feature}_${enable ? 'on' : 'off'}`;
+            try {
+                const res = await fetch('/api/inverter/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command: cmdName })
+                });
+                const data = await parseJsonResponse(res);
+                if (data.success) {
+                    showToast('success', 'Command Sent', `Sent ${cmdName} to inverter (Frame: ${data.frame_hex || 'OK'}, ASCII: ${data.ascii_cmd || 'N/A'})`);
+                } else {
+                    showToast('danger', 'Command Rejected', `Inverter rejected ${cmdName}: ${data.error || 'Unknown BLE error'}`);
+                }
+                setTimeout(fetchTelemetry, 600);
+            } catch (e) {
+                showToast('danger', 'BLE Error', `Failed to transmit ${cmdName}: ${e.message}`);
+            }
+        }
+
+        function handleForceCutToggle(checked) {
+            if (checked) openForceCutModal();
+            else toggleControl('force_cut', false);
+        }
+
+        async function openForceCutModal() {
+            const modal = document.getElementById('forceCutModal');
+            modal.classList.add('active');
+
+            const loader = document.getElementById('forceCutPreprocessLoader');
+            const container = document.getElementById('forceCutOptionsContainer');
+
+            if (loader) loader.style.display = 'block';
+            if (container) container.style.opacity = '0.5';
+
+            try {
+                // Preprocess: read live registers 207, 204, 305, 7 from device before enabling selection
+                const res = await fetch('/api/inverter/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command: 'preprocess_force_cut' })
+                });
+                const data = await parseJsonResponse(res);
+                const tel = (data && data.telemetry) || {};
+
+                // Remove selected highlights from all options
+                document.querySelectorAll('.force-cut-option').forEach(el => el.classList.remove('selected', 'active-option'));
+
+                if (tel.forced_power_cut) {
+                    const mins = tel.forced_power_cut_mins || 30;
+                    if (mins <= 30) document.getElementById('forceCutOpt30m')?.classList.add('active-option');
+                    else if (mins <= 60) document.getElementById('forceCutOpt60m')?.classList.add('active-option');
+                    else document.getElementById('forceCutOpt120m')?.classList.add('active-option');
+                } else {
+                    document.getElementById('forceCutOptClear')?.classList.add('active-option');
+                }
+            } catch (e) {
+                console.warn('Preprocess fetch error:', e);
+            } finally {
+                if (loader) loader.style.display = 'none';
+                if (container) container.style.opacity = '1';
+            }
+        }
+
+        function openDetailsModal() { document.getElementById('detailsModal').classList.add('active'); fetchTelemetry(); }
+        function closeDetailsModal() { document.getElementById('detailsModal').classList.remove('active'); }
+        function closeForceCutModal() { document.getElementById('forceCutModal').classList.remove('active'); }
+
+        async function applyForceCut(option) {
+            closeForceCutModal();
+            let cmdName = `force_cut_${option}`;
+            try {
+                showToast('info', '🗼 Transmitting Command', `Executing preprocess sequence for ${option}...`);
+                const res = await fetch('/api/inverter/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command: cmdName })
+                });
+                const data = await parseJsonResponse(res);
+                if (data.success) {
+                    showToast('warning', '🗼 Forced Power Cut', `Command ${cmdName} transmitted successfully (Frame: ${data.frame_hex || 'OK'})`);
+                } else {
+                    showToast('danger', 'Command Rejected', `Failed to apply force cut: ${data.error || 'Device error'}`);
+                }
+                setTimeout(fetchTelemetry, 400);
+                setTimeout(fetchTelemetry, 1400);
+            } catch (e) {
+                showToast('danger', 'BLE Error', `Force cut error: ${e.message}`);
+            }
+        }
+        function openScanModal() { document.getElementById('scanModal').classList.add('active'); }
+        function closeScanModal() { document.getElementById('scanModal').classList.remove('active'); }
+        function openHassModal() { document.getElementById('hassModal').classList.add('active'); loadHassConfig(); }
+        function closeHassModal() { document.getElementById('hassModal').classList.remove('active'); }
+
+        // ── Settings Modal ───────────────────────────────────────────────────
+        function openSettingsModal() {
+            document.getElementById('settingsModal').classList.add('active');
+            document.getElementById('settingsStatusMsg').textContent = '';
+            fetchAutoConnectStatus();
+        }
+        function closeSettingsModal() {
+            document.getElementById('settingsModal').classList.remove('active');
+        }
+        function openScanFromSettings() {
+            closeSettingsModal();
+            openScanModal();
+            triggerScan();
+        }
+        function openDisconnectModal() { openSettingsModal(); }
+        function closeDisconnectModal() { closeSettingsModal(); }
+
+        // Auto-connect hardware toggle switch
+        function _setToggleVisual(enabled) {
+            const slider = document.getElementById('autoConnectSlider');
+            const knob = document.getElementById('sliderKnob');
+            const chk = document.getElementById('autoConnectToggle');
+            if (!slider || !knob) return;
+            if (enabled) {
+                slider.style.background = 'var(--success)';
+                knob.style.transform = 'translateX(20px)';
+                chk.checked = true;
+            } else {
+                slider.style.background = 'var(--danger)';
+                knob.style.transform = 'translateX(0)';
+                chk.checked = false;
+            }
+        }
+
+        async function handleAutoConnectToggle(enabled) {
+            _setToggleVisual(enabled);
+            try {
+                if (enabled) {
+                    const res = await fetch('/api/auto-connect/start', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
+                    const d = await res.json();
+                    showToast('success', 'Auto-Connect ON', `Scanning for ${d.target || 'inverter'}...`);
+                } else {
+                    await fetch('/api/auto-connect/stop', { method:'POST' });
+                    showToast('warning', 'Auto-Connect OFF', 'Auto-reconnect paused');
+                }
+                fetchAutoConnectStatus();
+            } catch (e) { showToast('danger', 'Error', e.message); }
+        }
+
+        async function settingsDisconnectOnly() {
+            document.getElementById('settingsStatusMsg').textContent = 'Disconnecting...';
+            try {
+                const res = await fetch('/api/disconnect', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({stop_auto_connect:false}) });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('warning', 'Disconnected', 'BLE closed. Auto-connect will retry shortly.');
+                    document.getElementById('settingsStatusMsg').textContent = 'Disconnected. Auto-connect will scan and reconnect.';
+                    setTimeout(() => closeSettingsModal(), 2000);
+                } else {
+                    document.getElementById('settingsStatusMsg').textContent = 'Error: ' + (data.error || data.message);
+                }
+                fetchTelemetry(); fetchAutoConnectStatus();
+            } catch (e) { document.getElementById('settingsStatusMsg').textContent = 'Error: ' + e.message; }
+        }
+
+        async function settingsDisconnectStop() {
+            document.getElementById('settingsStatusMsg').textContent = 'Disconnecting & stopping auto-connect...';
+            try {
+                const res = await fetch('/api/disconnect', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({stop_auto_connect:true}) });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('danger', 'Disconnected', 'BLE closed. Auto-reconnect paused.');
+                    document.getElementById('settingsStatusMsg').textContent = 'Auto-connect PAUSED. Use "Resume Auto-Connect" to re-enable.';
+                } else {
+                    document.getElementById('settingsStatusMsg').textContent = 'Error: ' + (data.error || data.message);
+                }
+                fetchTelemetry(); fetchAutoConnectStatus();
+            } catch (e) { document.getElementById('settingsStatusMsg').textContent = 'Error: ' + e.message; }
+        }
+
+        async function settingsResumeAutoConnect() {
+            try {
+                const res = await fetch('/api/auto-connect/start', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('success', 'Auto-Connect Resumed', `Scanning for ${data.target || 'inverter'}...`);
+                    document.getElementById('settingsStatusMsg').textContent = 'Auto-connect active. Scanning...';
+                    setTimeout(() => closeSettingsModal(), 1800);
+                }
+                fetchAutoConnectStatus();
+            } catch (e) { showToast('danger', 'Error', e.message); }
+        }
+
+        // Legacy aliases kept for backwards compatibility
+        async function resumeAutoConnect() { await settingsResumeAutoConnect(); }
+        async function triggerDisconnect() { openSettingsModal(); }
+        async function doDisconnect(stop) { stop ? await settingsDisconnectStop() : await settingsDisconnectOnly(); }
+
+        async function fetchAutoConnectStatus() {
+            try {
+                const res = await fetch('/api/auto-connect/status');
+                const data = await res.json();
+                const isConnected = data.ble_connected;
+                const acEnabled = data.auto_connect_enabled;
+
+                // Header BLE dot
+                const bleDot = document.getElementById('bleDot');
+                const bleLabel = document.getElementById('bleLabel');
+                const btDot = document.getElementById('btDot');
+                const btLabel = document.getElementById('btLabel');
+                const devPill = document.getElementById('connDevicePill');
+                const connText = document.getElementById('connStatusText');
+
+                if (bleDot) {
+                    bleDot.style.background = isConnected ? 'var(--success)' : 'var(--danger)';
+                    bleDot.style.boxShadow = isConnected ? '0 0 6px var(--success)' : 'none';
+                    bleLabel.style.color = isConnected ? 'var(--success)' : 'var(--text-muted)';
+                }
+                if (btDot) {
+                    btDot.style.background = acEnabled ? 'var(--success)' : 'var(--danger)';
+                    btDot.style.boxShadow = acEnabled ? '0 0 6px var(--success)' : 'none';
+                    btLabel.style.color = acEnabled ? 'var(--success)' : 'var(--text-muted)';
+                }
+                if (devPill) {
+                    if (isConnected && data.connected_device) {
+                        devPill.style.display = 'flex';
+                        connText.textContent = data.connected_device;
+                    } else {
+                        devPill.style.display = 'none';
+                    }
+                }
+
+                // Settings modal inner dots
+                const sBle = document.getElementById('settingsBleStatus');
+                const sBleLabel = document.getElementById('settingsBleLabel');
+                const sBleDevice = document.getElementById('settingsBleDevice');
+                const sAcDot = document.getElementById('settingsAcDot');
+                const sAcLabel = document.getElementById('settingsAcLabel');
+                const sAcTarget = document.getElementById('settingsAcTarget');
+                if (sBle) {
+                    sBle.style.background = isConnected ? 'var(--success)' : 'var(--danger)';
+                    if (sBleLabel) sBleLabel.textContent = isConnected ? 'Connected' : 'Disconnected';
+                    if (sBleLabel) sBleLabel.style.color = isConnected ? 'var(--success)' : 'var(--danger)';
+                    if (sBleDevice) sBleDevice.textContent = data.connected_device || '—';
+                }
+                if (sAcDot) {
+                    sAcDot.style.background = acEnabled ? 'var(--success)' : 'var(--danger)';
+                    if (sAcLabel) { sAcLabel.textContent = acEnabled ? 'ON' : 'PAUSED'; sAcLabel.style.color = acEnabled ? 'var(--success)' : 'var(--danger)'; }
+                    if (sAcTarget) sAcTarget.textContent = data.auto_connect_target || 'VG_SMART_BT_WF_2';
+                }
+
+                // Toggle switch visual
+                _setToggleVisual(acEnabled);
+
+                // Settings action buttons - show connect/disconnect based on state
+                const btnD = document.getElementById('settingsBtnDisconn');
+                const btnDS = document.getElementById('settingsBtnDisconnStop');
+                const btnR = document.getElementById('settingsBtnResume');
+                if (btnD) btnD.style.display = isConnected ? 'block' : 'none';
+                if (btnDS) btnDS.style.display = isConnected ? 'block' : 'none';
+                if (btnR) btnR.style.display = (!acEnabled) ? 'block' : 'none';
+
+            } catch (_) {}
+        }
+
+        async function loadHassConfig() {
+            try {
+                const res = await fetch('/api/inverter/ha-config');
+                const data = await res.json();
+                if (data.success) {
+                    document.getElementById('haUrlInput').value = data.ha_url || '';
+                    document.getElementById('haTokenInput').value = data.ha_token || '';
+                    document.getElementById('haIntervalInput').value = data.push_interval || 10;
+                    document.getElementById('haStatusLabel').textContent = `Status: ${data.last_status}`;
+                }
+            } catch (e) {}
+        }
+
+        async function saveHassConfig() {
+            const url = document.getElementById('haUrlInput').value;
+            const token = document.getElementById('haTokenInput').value;
+            const interval = document.getElementById('haIntervalInput').value;
+            try {
+                const res = await fetch('/api/inverter/ha-config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ha_url: url, ha_token: token, push_interval: interval })
+                });
+                const data = await res.json();
+                showToast('success', 'Home Assistant Saved', data.message || 'Saved');
+                loadHassConfig();
+            } catch (e) { showToast('danger', 'Save Error', e.message); }
+        }
+
+        async function testHassConn() { await saveHassConfig(); }
+
+        // Auto Refresh Loop
+        fetchTelemetry();
+        fetchAutoConnectStatus();
+        setInterval(fetchTelemetry, 2500);
+        setInterval(fetchAutoConnectStatus, 5000);
+
+        function toggleDebugAccordion() {
+            const body = document.getElementById('debugAccordionBody');
+            const arrow = document.getElementById('accordionArrow');
+            body.classList.toggle('open');
+            arrow.textContent = body.classList.contains('open') ? '▲' : '▼';
+        }
+
+        async function triggerScan() {
+            document.getElementById('scanSpinner').style.display = 'block';
+            const container = document.getElementById('scanResultsContainer');
+            container.innerHTML = '';
+            try {
+                const res = await fetch('/api/scan-devices');
+                const data = await res.json();
+                document.getElementById('scanSpinner').style.display = 'none';
+                if (data.success && data.devices.length > 0) {
+                    data.devices.forEach(dev => {
+                        const div = document.createElement('div');
+                        div.className = 'scan-item';
+                        div.innerHTML = `
+                            <div>
+                                <h4 style="margin-bottom:4px; font-weight:700;">${dev.name || 'V-Guard Device'}</h4>
+                                <p style="font-size:0.8rem; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">${dev.address}</p>
+                            </div>
+                            <button class="btn-glass btn-primary" onclick="connectDevice('${dev.address}', '${dev.name}')">Connect</button>
+                        `;
+                        container.appendChild(div);
+                    });
+                } else {
+                    container.innerHTML = `<p style="color:var(--text-muted); text-align:center;">No V-Guard devices detected nearby.</p>`;
+                }
+            } catch (e) {
+                document.getElementById('scanSpinner').style.display = 'none';
+                container.innerHTML = `<p style="color:var(--danger); text-align:center;">Scan error: ${e.message}</p>`;
+            }
+        }
+
+        async function connectDevice(address, name) {
+            try {
+                const res = await fetch('/api/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ address, name })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    closeScanModal();
+                    showToast('success', 'BLE Connected', `Connected to ${name} (${address})`);
+                    fetchTelemetry();
+                } else {
+                    showToast('danger', 'Connection Failed', data.error || data.message);
+                }
+            } catch (e) { showToast('danger', 'Connection Error', e.message); }
+        }
+
+    </script>
+</body>
+</html>
