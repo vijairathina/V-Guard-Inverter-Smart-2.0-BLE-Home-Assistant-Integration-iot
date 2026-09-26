@@ -140,7 +140,7 @@ def _execute_ha_command(cmd_name: str):
         # Immediate state sync back to Home Assistant
         _sync_ha_now(force=True)
         return res
-    except Exception as e: x
+    except Exception as e:
         logger.error(f"[HA-Listener] Command '{cmd_name}' execution error: {e}")
         return {'success': False, 'error': str(e)}
 
