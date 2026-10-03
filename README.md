@@ -1,4 +1,4 @@
-# V-Guard Smart Inverter - BLE & Home Assistant Integration
+# V-Guard Smart Inverter - BLE & Home Assistant Integration - IOT
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-REST%20API-41BDF5.svg?logo=home-assistant)](https://www.home-assistant.io/)
